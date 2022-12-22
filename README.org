@@ -1,0 +1,101 @@
+Read date in minibuffer interactivelly.
+
+** Requirements
+
++ Emacs >= 27.1
+
+** Installation
+
+*** Manual
+
+Download the source code and put it wherever you like and add the directory to the load path:
+
+#+begin_src elisp :eval no
+
+(add-to-list 'load-path "/path/to/idate")
+
+(require 'idate)
+
+#+end_src
+
+*** With use-package and straight
+
+#+begin_src elisp :eval no
+
+(use-package idate
+  :straight (idate
+             :repo "KarimAziev/idate"
+             :type git
+             :host github)
+  :bind ((:map idate-minubuffer-keymap
+               ("C-g" . abort-minibuffers)
+               ("TAB" . idate-next-field)
+               ("C-j" . exit-minibuffer)
+               ("RET" . idate-done)
+               ("SPC" . idate-next-field)
+               ("M" . idate-goto-month)
+               ("b" . idate-dec-current)
+               ("d" . idate-goto-day)
+               ("f" . idate-inc-current)
+               ("h" . idate-goto-hours)
+               ("m" . idate-goto-minutes)
+               ("y" . idate-goto-year)
+               ("C-." . idate-toggle-with-time)
+               ("C->" . idate-toggle-with-time)
+               ("C-<tab>" . file-cache-minibuffer-complete)
+               ("S-<down>" . idate-dec-day)
+               ("S-<left>" . idate-dec-month)
+               ("S-<right>" . idate-inc-month)
+               ("S-<up>" . idate-inc-day)
+               ("C-x <down>" . minibuffer-complete-defaults)
+               ("C-x <up>" . minibuffer-complete-history)
+               ("M-<" . minibuffer-beginning-of-buffer)
+               ("M-n" . next-history-element)
+               ("M-p" . previous-history-element)
+               ("M-r" . previous-matching-history-element)
+               ("M-s" . next-matching-history-element)))
+  :commands (idate-insert-org-time-stamp
+             idate-edit-field-at-point
+             idate-prev-field))
+
+#+end_src
+
+** Keymaps
+
+*** ~idate-minubuffer-keymap~
+| Key       | Command                | 
+|-----------+------------------------|
+| TAB       | idate-next-field       |
+| RET       | idate-done             |
+| SPC       | idate-next-field       |
+| M         | idate-goto-month       |
+| b         | idate-dec-current      |
+| d         | idate-goto-day         |
+| f         | idate-inc-current      |
+| h         | idate-goto-hours       |
+| m         | idate-goto-minutes     |
+| y         | idate-goto-year        |
+| C-.       | idate-toggle-with-time |
+| C->       | idate-toggle-with-time |
+| S-<down>  | idate-dec-day          |
+| S-<left>  | idate-dec-month        |
+| S-<right> | idate-inc-month        |
+| S-<up>    | idate-inc-day          |
+** Commands
+
+*** ~idate-insert-org-time-stamp~
+Read and insert date as org timestamp. See ~format-time-string~ for the format of ~time.~ ~without-hm~ inhibit the stamp format that includes the time of the day. ~inactive~ means use square brackets instead of angular ones, so that the stamp will not contribute to the agenda. ~pre~ and ~post~ are optional strings to be inserted before and after the stamp. ~extra~ is last argument to pass in ~org-insert-time-stamp.~ The command returns the inserted time stamp.
+** Customization
+
+*** ~idate-rules-alist~
+Rules for date parts.
+*** ~idate-popup-calendar~
+Non-nil means display a calendar when prompting for a date. When nil, only the minibuffer will be available.
+** Functions
+
+*** ~idate-insert-time-stamp~  (&optional without-hm inactive pre post extra)
+Read and insert date as org timestamp. See ~format-time-string~ for the format of ~time.~ ~without-hm~ inhibit the stamp format that includes the time of the day. ~inactive~ means use square brackets instead of angular ones, so that the stamp will not contribute to the agenda. ~pre~ and ~post~ are optional strings to be inserted before and after the stamp. ~extra~ is last argument to pass in ~org-insert-time-stamp.~ The command returns the inserted time stamp.
+*** ~idate-read~  (&optional prompt default-value without-time)
+Read date in minibuffer with ~prompt~ and return encoded result. Optional argument ~default-value~ should be encoded time. If ~without-time~ don't display time.
+*** ~idate-read-and-format~  (&optional prompt default-value without-time format-str)
+Read date with ~prompt~ and return formatted with ~format-str~ result. Optional argument ~default-value~ should be encoded time. If ~without-time~ don't display time.
