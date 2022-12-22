@@ -589,8 +589,8 @@ If WITHOUT-TIME don't display time."
                          (when idate-popup-calendar
                            (idate-calendar-eval)))))
                  (read-from-minibuffer (or
-                                        "Date: "
-                                        prompt)))))
+                                        prompt
+                                        "Date: ")))))
 
 (defun idate-insert-time-stamp (&optional without-hm inactive pre post extra)
   "Read and insert date as org timestamp.
