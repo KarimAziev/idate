@@ -26,37 +26,7 @@ Download the source code and put it wherever you like and add the directory to t
   :straight (idate
              :repo "KarimAziev/idate"
              :type git
-             :host github)
-  :bind ((:map idate-minubuffer-keymap
-               ("C-g" . abort-minibuffers)
-               ("TAB" . idate-next-field)
-               ("C-j" . exit-minibuffer)
-               ("RET" . idate-done)
-               ("SPC" . idate-next-field)
-               ("M" . idate-goto-month)
-               ("b" . idate-dec-current)
-               ("d" . idate-goto-day)
-               ("f" . idate-inc-current)
-               ("h" . idate-goto-hours)
-               ("m" . idate-goto-minutes)
-               ("y" . idate-goto-year)
-               ("C-." . idate-toggle-with-time)
-               ("C->" . idate-toggle-with-time)
-               ("C-<tab>" . file-cache-minibuffer-complete)
-               ("S-<down>" . idate-dec-day)
-               ("S-<left>" . idate-dec-month)
-               ("S-<right>" . idate-inc-month)
-               ("S-<up>" . idate-inc-day)
-               ("C-x <down>" . minibuffer-complete-defaults)
-               ("C-x <up>" . minibuffer-complete-history)
-               ("M-<" . minibuffer-beginning-of-buffer)
-               ("M-n" . next-history-element)
-               ("M-p" . previous-history-element)
-               ("M-r" . previous-matching-history-element)
-               ("M-s" . next-matching-history-element)))
-  :commands (idate-insert-org-time-stamp
-             idate-edit-field-at-point
-             idate-prev-field))
+             :host github))
 
 #+end_src
 
