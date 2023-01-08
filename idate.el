@@ -309,6 +309,19 @@ When nil, only the minibuffer will be available."
     (idate-goto-month)
     (idate-dec-current)))
 
+(defun idate-dec-year ()
+  "Increment current field."
+  (interactive)
+  (save-excursion
+    (idate-goto-year)
+    (idate-dec-current)))
+
+(defun idate-inc-year ()
+  "Increment current field."
+  (interactive)
+  (save-excursion
+    (idate-goto-year)
+    (idate-inc-current)))
 
 (defun idate-inc-current ()
   "Increment current field."
@@ -339,10 +352,14 @@ When nil, only the minibuffer will be available."
     (define-key map (kbd "M") 'idate-goto-month)
     (define-key map (kbd "<up>") 'idate-inc-current)
     (define-key map (kbd "<down>") 'idate-dec-current)
-    (define-key map (kbd "S-<up>") 'idate-inc-day)
-    (define-key map (kbd "S-<down>") 'idate-dec-day)
-    (define-key map (kbd "S-<right>") 'idate-inc-month)
-    (define-key map (kbd "S-<left>") 'idate-dec-month)
+    (define-key map (kbd "S-<right>") 'idate-inc-day)
+    (define-key map (kbd "S-<left>") 'idate-dec-day)
+    (define-key map (kbd "M-<right>") 'idate-inc-month)
+    (define-key map (kbd "M-<left>") 'idate-dec-month)
+    (define-key map (kbd "M-<up>") 'idate-inc-month)
+    (define-key map (kbd "M-<down>") 'idate-dec-month)
+    (define-key map (kbd "M-S-<up>") 'idate-inc-year)
+    (define-key map (kbd "M-S-<down>") 'idate-dec-year)
     (define-key map (kbd "f") 'idate-inc-current)
     (define-key map (kbd "b") 'idate-dec-current)
     (define-key map (kbd "<left>")
