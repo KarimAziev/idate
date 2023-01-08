@@ -201,14 +201,11 @@ When nil, only the minibuffer will be available."
   (let ((field (idate-field-name-at-point)))
     (unless (eq field-name
                 field)
-      (when (or
-             (text-property-search-forward 'field-name field-name
-                                           t)
-             (text-property-search-backward 'field-name
-                                            field-name
-                                            t))
-        (when-let ((bounds (idate-field-bounds-at-point)))
-          (goto-char (car bounds)))))))
+      (goto-char (minibuffer-prompt-end))
+      (text-property-search-forward 'field-name field-name
+                                    t)
+      (when-let ((bounds (idate-field-bounds-at-point)))
+        (goto-char (car bounds))))))
 
 (defun idate-goto-hours ()
   "Jump to hours in minubuffer."
