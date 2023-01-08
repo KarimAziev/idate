@@ -32,8 +32,19 @@
 
 
 
-(defvar idate-current-time (decode-time (current-time)))
+(declare-function org-read-date-analyze "org")
+(declare-function org-encode-time "org-macs")
 
+(defvar idate-current-time nil)
+(defvar org-read-date-force-compatible-dates)
+(defvar org-read-date-analyze-forced-year)
+(defvar org-read-date-overlay)
+(defvar org-extend-today-until)
+(defvar org-overriding-default-time)
+(defvar org-time-stamp-rounding-minutes)
+(require 'calendar)
+
+(declare-function org-current-time "org")
 (declare-function calendar-forward-day "cal-move")
 (declare-function calendar-absolute-from-gregorian "calendar")
 (declare-function calendar-current-date "calendar")
@@ -46,28 +57,27 @@ When nil, only the minibuffer will be available."
   :group 'org-time
   :type 'boolean)
 
-(defvar idate-time-formats '((second . "%S")
-                                    (minute . "%M")
-                                    (hour . "%H")
-                                    (day . "%d")
-                                    (month . "%b")
-                                    (year . "%Y")
-                                    (dow . "%w")))
-
+(defvar idate-time-formats
+  '((second . "%S")
+    (minute . "%M")
+    (hour . "%H")
+    (day . "%d")
+    (month . "%m")
+    (year . "%Y")
+    (dow . "%w")))
 
 (defvar idate-time-elems '(second minute hour day month year dow dst
                                          utcoff))
 
 
-(defcustom idate-rules-alist '((hour
-                                       :separator ":")
-                                      (minute)
-                                      (day)
-                                      (month
-                                       :display "%B")
-                                      (dow
-                                       :display "%A")
-                                      (year))
+(defcustom idate-rules-alist '((day)
+                               (month :display "%b")
+                               (dow
+                                :display "%A")
+                               (year)
+                               (hour
+                                :separator ":")
+                               (minute))
   "Rules for date parts."
   :group 'date
   :type `(alist
@@ -86,6 +96,7 @@ When nil, only the minibuffer will be available."
                   (:display (string :tag "Display format"))))))
 
 (defvar-local idate-rules nil)
+
 (defun idate-inc-or-dec (step current-index min max)
   "Increase or decrease CURRENT-INDEX depending on STEP value, MIN and MAX."
   (let ((max (if (numberp max)
@@ -116,14 +127,14 @@ When nil, only the minibuffer will be available."
                       (nth (seq-position idate-time-elems 'month)
                            idate-current-time)))
                ('month 12)
-               ('year 3000)
+               ('year 2999)
                ('dow 6)))
         (min (pcase field
                ('minute 0)
                ('hour 0)
                ('day 1)
                ('month 1)
-               ('year 1000)
+               ('year 1970)
                ('dow 0)))
         (value)
         (new-value))
@@ -131,25 +142,25 @@ When nil, only the minibuffer will be available."
     (pcase field
       ((or 'day 'dow)
        (setq idate-current-time (idate-day-add-hours
-                                        (if (> step 0) 24 -24))))
+                                 (if (> step 0) 24 -24)
+                                 idate-current-time)))
       ('month
        (setq idate-current-time
              (idate-day-add-hours (+
-                                          (* (if (> step 0) 24 -24)
-                                             30)))))
+                                   (* (if (> step 0) 24 -24)
+                                      30))
+                                  idate-current-time)))
       (_
        (setq new-value (idate-inc-or-dec step value min max))
        (setf (nth idx idate-current-time) new-value)))
-    (idate-rerender)
-    (idate-calendar-eval)))
+    (idate-rerender)))
 
-(defun idate-day-add-hours (hours)
-  "Return decoded `idate-current-time' with HOURS added."
+(defun idate-day-add-hours (hours decoded-time)
+  "Returnq decoded DECODED-TIME with HOURS added."
   (let ((time (time-to-seconds (apply
                                 #'encode-time
-                                idate-current-time))))
+                                decoded-time))))
     (decode-time (seconds-to-time (+ time (* hours 3600))))))
-
 
 (defun idate-set-field-value (field-name new-value)
   "Update date and rerender FIELD-NAME with NEW-VALUE."
@@ -162,7 +173,7 @@ When nil, only the minibuffer will be available."
                         idate-current-time)))
     (idate-rerender)))
 
-(defun idate-time-field-valid-p (field-name value)
+(defun idate-get-field-valid-value (field-name value)
   "Return t if VALUE of FIELD-NAME is valid."
   (let ((max-val (pcase field-name
                    ('minute 59)
@@ -173,22 +184,27 @@ When nil, only the minibuffer will be available."
                           (nth (seq-position idate-time-elems 'month)
                                idate-current-time)))
                    ('month 12)
-                   ('year 3000)
+                   ('year 2999)
                    ('dow 6)))
         (min-val (pcase field-name
                    ('minute 0)
+                   ('year 1970)
                    ('hour 0)
                    ('day 1)
                    ('month 1)
-                   ('dow 0))))
-    (cond ((and max-val min-val)
-           (and (<= value max-val)
-                (>= value min-val)))
-          ((and max-val)
-           (<= value max-val))
-          ((and min-val)
-           (>= value min-val))
-          (t t))))
+                   ('dow 0)))
+        (valid))
+    (setq valid (cond ((and max-val min-val)
+                       (and (<= value max-val)
+                            (>= value min-val)))
+                      ((and max-val)
+                       (<= value max-val))
+                      ((and min-val)
+                       (>= value min-val))
+                      (t t)))
+    (if valid
+        value
+      (or min-val max-val))))
 
 (defun idate-jump-to-field (field-name)
   "Jump to FIELD-NAME."
@@ -243,7 +259,7 @@ When nil, only the minibuffer will be available."
           #'encode-time
           idate-current-time)))
 
-
+(defvar idate--org-with-time nil)
 (defun idate-toggle-with-time ()
   "Throw done with encoded `idate-current-time'."
   (interactive)
@@ -262,8 +278,16 @@ When nil, only the minibuffer will be available."
               idate-rules-alist))
           (seq-copy
            idate-rules-alist)))
+  (setq idate--org-with-time
+        (= (length idate-rules)
+           (length idate-rules-alist)))
   (idate-rerender))
 
+(defun idate-today ()
+  "Set today to `idate-current-time'."
+  (interactive)
+  (setq idate-current-time (decode-time (current-time)))
+  (idate-rerender))
 
 (defun idate-inc-day ()
   "Increment current field."
@@ -353,7 +377,7 @@ When nil, only the minibuffer will be available."
     (define-key map (kbd "8") 'idate-edit-field-at-point)
     (define-key map (kbd "9") 'idate-edit-field-at-point)
     (define-key map (kbd "C->") 'idate-toggle-with-time)
-    (define-key map (kbd "C-.") 'idate-toggle-with-time)
+    (define-key map (kbd "C-.") 'idate-today)
     (define-key map [remap (delete-backward-char)]
                 'left-char)
     map))
@@ -428,16 +452,16 @@ When nil, only the minibuffer will be available."
                             (t (concat value-before descr
                                        (substring value-after 1)))))
       (unless (string-match-p "[^0-9]" new-value)
-        (when (idate-time-field-valid-p
-               field-name
-               (string-to-number new-value))
+        (when-let ((val (idate-get-field-valid-value
+                         field-name
+                         (string-to-number new-value))))
           (idate-set-field-value
-           field-name (string-to-number
-                       new-value))
+           field-name val)
           (if (string-empty-p value-after)
               (idate-next-field)
             (forward-char 1)))
-        (idate-calendar-eval)))))
+        (when idate-popup-calendar
+          (idate-calendar-eval))))))
 
 (defvar idate-ovl (make-overlay 1 1))
 (overlay-put idate-ovl 'face 'org-date-selected)
@@ -460,9 +484,18 @@ When nil, only the minibuffer will be available."
   (require 'calendar)
   (require 'cal-move)
   (save-excursion
+    (unless (get-buffer-window "*Calendar*")
+      (ignore-errors
+        (with-minibuffer-selected-window
+          (selected-window)
+          (split-window-vertically 60 (or (window-left
+                                           (selected-window))
+                                          (selected-window))))))
     (calendar)
     (save-window-excursion
       (calendar)
+      (select-window (get-buffer-window "*Calendar*"))
+      (fit-window-to-buffer nil 30 30)
       (idate--eval-in-calendar '(setq cursor-type nil))
       (unwind-protect
           (progn
@@ -488,7 +521,9 @@ When nil, only the minibuffer will be available."
                (encode-time idate-current-time)))
       (goto-char pos)
       (add-text-properties (point-min)
-                           (point-max) '(read-only t)))))
+                           (point-max) '(read-only t))
+      (when idate-popup-calendar
+        (idate-calendar-eval)))))
 
 (defun idate-time-render-value (time)
   "Render encoded TIME as string."
@@ -553,7 +588,7 @@ If WITHOUT-TIME don't display time."
 Optional argument DEFAULT-VALUE should be encoded time.
 If WITHOUT-TIME don't display time."
   (setq idate-current-time
-        (decode-time (or default-value (current-time))))
+        (decode-time (or default-value (org-current-time))))
   (catch 'done (minibuffer-with-setup-hook
                    (lambda ()
                      (when (active-minibuffer-window)
@@ -580,14 +615,7 @@ If WITHOUT-TIME don't display time."
                              idate-rules-alist)))
                          (let ((inhibit-read-only
                                 t))
-                           (idate-rerender)
-                           (add-text-properties
-                            (point-min)
-                            (point-max)
-                            '(read-only
-                              t)))
-                         (when idate-popup-calendar
-                           (idate-calendar-eval)))))
+                           (idate-rerender)))))
                  (read-from-minibuffer (or
                                         prompt
                                         "Date: ")))))
@@ -606,6 +634,96 @@ The command returns the inserted time stamp."
     (org-insert-time-stamp (idate-read "Timestamp: " nil without-hm)
                            (not without-hm) inactive pre post extra)))
 
+
+
+(defvar org-read-date-final-answer)
+
+(defun idate-org-read-date (&optional with-time to-time from-string prompt
+                                      default-time default-input _inactive)
+  "Replacement for `org-read-date'.
+
+\(advice-add \='org-read-date :override #\='idate-org-read-date)
+
+With optional argument TO-TIME, the date will immediately be converted
+to an internal time.
+With an optional argument WITH-TIME, the prompt will suggest to
+also insert a time.  Note that when WITH-TIME is not set, you can
+still enter a time, and this function will inform the calling routine
+about this change.  The calling routine may then choose to change the
+format used to insert the time stamp into the buffer to include the time.
+With optional argument FROM-STRING, read from this string instead from
+the user.  PROMPT can overwrite the default prompt.  DEFAULT-TIME is
+the time/date that is used for everything that is not specified by the
+user."
+  (require 'org)
+  (setq idate--org-with-time
+        with-time)
+  (let* ((org-with-time with-time)
+         (org-time-stamp-rounding-minutes
+          (if (equal org-with-time '(16))
+              '(0 0)
+            org-time-stamp-rounding-minutes))
+         (ct (org-current-time))
+         (org-def (or org-overriding-default-time default-time ct))
+         (org-defdecode (decode-time org-def))
+         (mouse-autoselect-window nil)	; Don't let the mouse jump
+         (calendar-setup nil)
+         (calendar-move-hook nil)
+         (calendar-view-diary-initially-flag nil)
+         (calendar-view-holidays-initially-flag nil)
+         ans final)
+    ;; Rationalize `org-def' and `org-defdecode', if required.
+    (when (< (nth 2 org-defdecode) org-extend-today-until)
+      (setf (nth 2 org-defdecode) -1)
+      (setf (nth 1 org-defdecode) 59)
+      (setq org-def (org-encode-time org-defdecode))
+      (setq org-defdecode (decode-time org-def)))
+    (let* ((timestr (format-time-string
+                     (if org-with-time "%Y-%m-%d %H:%M" "%Y-%m-%d")
+                     org-def))
+           (prompt (concat (if prompt (concat prompt " ") "")
+                           (format "Date+time [%s]: " timestr))))
+      (cond ((and from-string)
+             (setq ans from-string))
+            ((and default-input)
+             (unwind-protect
+                 (setq ans (read-string prompt default-input
+                                        'org-read-date-history timestr))
+               (when org-read-date-overlay
+                 (delete-overlay org-read-date-overlay)
+                 (setq org-read-date-overlay nil))))
+            (t
+             (let ((result (idate-read prompt org-def
+                                       (not
+                                        org-with-time))))
+               (setq ans
+                     (format-time-string (if idate--org-with-time
+                                             "%Y-%m-%d %H:%M"
+                                           "%Y-%m-%d")
+                                         result)))))
+      (setq final (org-read-date-analyze ans org-def org-defdecode))
+      (when org-read-date-analyze-forced-year
+        (message "Year was forced into %s"
+                 (if org-read-date-force-compatible-dates
+                     "compatible range (1970-2037)"
+                   "range representable on this machine"))
+        (ding))
+      (setq final (org-encode-time final))
+      (setq org-read-date-final-answer ans)
+      (if to-time
+          final
+        (setq final (decode-time final))
+        (if (and (boundp 'org-time-was-given) org-time-was-given)
+            (format "%04d-%02d-%02d %02d:%02d"
+                    (nth 5 final)
+                    (nth 4 final)
+                    (nth 3 final)
+                    (nth 2 final)
+                    (nth 1 final))
+          (format "%04d-%02d-%02d" (nth 5 final)
+                  (nth 4 final)
+                  (nth 3 final)))))))
+
 ;;;###autoload
 (defun idate-insert-org-time-stamp ()
   "Read and insert date as org timestamp.
@@ -621,7 +739,7 @@ The command returns the inserted time stamp."
   (when (fboundp 'org-insert-time-stamp)
     (let ((without-hm (not (yes-or-no-p "With hh:mm?"))))
       (idate-insert-time-stamp without-hm
-                                      nil nil nil nil))))
+                               nil nil nil nil))))
 
 (provide 'idate)
 ;;; idate.el ends here

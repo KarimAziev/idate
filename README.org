@@ -1,4 +1,5 @@
-Read date in minibuffer interactivelly.
+
+Fancy replacement for ~org-read-date~.
 
 ** Requirements
 
@@ -13,24 +14,22 @@ Download the source code and put it wherever you like and add the directory to t
 #+begin_src elisp :eval no
 
 (add-to-list 'load-path "/path/to/idate")
-
 (require 'idate)
-
+(advice-add 'org-read-date :override #'idate-org-read-date)
 #+end_src
 
 *** With use-package and straight
 
 #+begin_src elisp :eval no
-
 (use-package idate
+  :after (org)
+  :demand t
   :straight (idate
              :repo "KarimAziev/idate"
              :type git
-             :host github))
-
+             :host github)
+  :config (advice-add 'org-read-date :override #'idate-org-read-date))
 #+end_src
-
-** Keymaps
 
 *** ~idate-minubuffer-keymap~
 | Key       | Command                | 
@@ -45,27 +44,32 @@ Download the source code and put it wherever you like and add the directory to t
 | h         | idate-goto-hours       |
 | m         | idate-goto-minutes     |
 | y         | idate-goto-year        |
-| C-.       | idate-toggle-with-time |
+| C-.       | idate-today            |
 | C->       | idate-toggle-with-time |
 | S-<down>  | idate-dec-day          |
 | S-<left>  | idate-dec-month        |
 | S-<right> | idate-inc-month        |
 | S-<up>    | idate-inc-day          |
-** Commands
 
-*** ~idate-insert-org-time-stamp~
-Read and insert date as org timestamp. See ~format-time-string~ for the format of ~time.~ ~without-hm~ inhibit the stamp format that includes the time of the day. ~inactive~ means use square brackets instead of angular ones, so that the stamp will not contribute to the agenda. ~pre~ and ~post~ are optional strings to be inserted before and after the stamp. ~extra~ is last argument to pass in ~org-insert-time-stamp.~ The command returns the inserted time stamp.
-** Customization
-
-*** ~idate-rules-alist~
-Rules for date parts.
-*** ~idate-popup-calendar~
-Non-nil means display a calendar when prompting for a date. When nil, only the minibuffer will be available.
 ** Functions
 
-*** ~idate-insert-time-stamp~  (&optional without-hm inactive pre post extra)
-Read and insert date as org timestamp. See ~format-time-string~ for the format of ~time.~ ~without-hm~ inhibit the stamp format that includes the time of the day. ~inactive~ means use square brackets instead of angular ones, so that the stamp will not contribute to the agenda. ~pre~ and ~post~ are optional strings to be inserted before and after the stamp. ~extra~ is last argument to pass in ~org-insert-time-stamp.~ The command returns the inserted time stamp.
+*** ~idate-org-read-date~ (&optional with-time to-time from-string prompt default-time default-input _inactive)
+
+Replacement for ~org-read-date~.
+
+#+begin_src emacs-lisp
+(advice-add ='org-read-date :override #='idate-org-read-date)
+#+end_src
 *** ~idate-read~  (&optional prompt default-value without-time)
 Read date in minibuffer with ~prompt~ and return encoded result. Optional argument ~default-value~ should be encoded time. If ~without-time~ don't display time.
+*** ~idate-insert-time-stamp~  (&optional without-hm inactive pre post extra)
+Read and insert date as org timestamp. See ~format-time-string~ for the format of ~time.~ ~without-hm~ inhibit the stamp format that includes the time of the day. ~inactive~ means use square brackets instead of angular ones, so that the stamp will not contribute to the agenda. ~pre~ and ~post~ are optional strings to be inserted before and after the stamp. ~extra~ is last argument to pass in ~org-insert-time-stamp.~ The command returns the inserted time stamp.
+
 *** ~idate-read-and-format~  (&optional prompt default-value without-time format-str)
 Read date with ~prompt~ and return formatted with ~format-str~ result. Optional argument ~default-value~ should be encoded time. If ~without-time~ don't display time.
+* Customization
+
+*** ~idate-rules-alist~
+Global rules for displaying date parts.
+*** ~idate-popup-calendar~
+Non-nil means display a calendar when prompting for a date. When nil, only the minibuffer will be available.
