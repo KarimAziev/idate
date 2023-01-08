@@ -32,24 +32,9 @@
 
 
 
-(declare-function org-read-date-analyze "org")
-(declare-function org-encode-time "org-macs")
-
+(require 'org)
 (defvar idate-current-time nil)
-(defvar org-read-date-force-compatible-dates)
-(defvar org-read-date-analyze-forced-year)
-(defvar org-read-date-overlay)
-(defvar org-extend-today-until)
-(defvar org-overriding-default-time)
-(defvar org-time-stamp-rounding-minutes)
-(require 'calendar)
 
-(declare-function org-current-time "org")
-(declare-function calendar-forward-day "cal-move")
-(declare-function calendar-absolute-from-gregorian "calendar")
-(declare-function calendar-current-date "calendar")
-(declare-function date-days-in-month "time-date")
-(declare-function text-property-search-backward "text-property-search")
 
 (defcustom idate-popup-calendar t
   "Non-nil means display a calendar when prompting for a date.
