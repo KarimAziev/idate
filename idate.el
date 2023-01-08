@@ -31,10 +31,8 @@
 
 
 
-
 (require 'org)
 (defvar idate-current-time nil)
-
 
 (defcustom idate-popup-calendar t
   "Non-nil means display a calendar when prompting for a date.
@@ -130,11 +128,34 @@ When nil, only the minibuffer will be available."
                                  (if (> step 0) 24 -24)
                                  idate-current-time)))
       ('month
-       (setq idate-current-time
-             (idate-day-add-hours (+
-                                   (* (if (> step 0) 24 -24)
-                                      30))
-                                  idate-current-time)))
+       (let* ((day  (nth (seq-position idate-time-elems 'day)
+                         idate-current-time))
+              (new-val (idate-day-add-hours (+
+                                             (* (if (> step 0) 24 -24)
+                                                (date-days-in-month
+                                                 (nth
+                                                  (seq-position idate-time-elems
+                                                                'year)
+                                                  idate-current-time)
+                                                 (nth (seq-position
+                                                       idate-time-elems
+                                                       'month)
+                                                      idate-current-time))))
+                                            idate-current-time))
+              (new-day (nth (seq-position idate-time-elems 'day)
+                            new-val))
+              (max-day (date-days-in-month (nth
+                                            (seq-position idate-time-elems
+                                                          'year)
+                                            new-val)
+                                           (nth (seq-position idate-time-elems
+                                                              'month)
+                                                new-val))))
+         (when (and (> max-day day)
+                    (not (= new-day day)))
+           (setf (nth (seq-position idate-time-elems 'day) new-val) day))
+         (setq idate-current-time
+               new-val)))
       (_
        (setq new-value (idate-inc-or-dec step value min max))
        (setf (nth idx idate-current-time) new-value)))
@@ -487,29 +508,39 @@ When nil, only the minibuffer will be available."
   (require 'calendar)
   (require 'cal-move)
   (save-excursion
-    (unless (get-buffer-window "*Calendar*")
-      (ignore-errors
-        (with-minibuffer-selected-window
-          (selected-window)
-          (split-window-vertically 60 (or (window-left
-                                           (selected-window))
-                                          (selected-window))))))
-    (calendar)
-    (save-window-excursion
-      (calendar)
-      (select-window (get-buffer-window "*Calendar*"))
-      (fit-window-to-buffer nil 30 30)
-      (idate--eval-in-calendar '(setq cursor-type nil))
-      (unwind-protect
-          (progn
-            (calendar-forward-day (-
-                                   (time-to-days
-                                    (apply #'encode-time
-                                           idate-current-time))
-                                   (calendar-absolute-from-gregorian
-                                    (calendar-current-date))))
-            (idate--eval-in-calendar nil))
-        (bury-buffer "*Calendar*"))))
+    (let* ((wind (or (minibuffer-selected-window)
+                     (selected-window)))
+           (target (car (delete nil
+                                (seq-filter 'window-live-p (list (window-left
+                                                                  wind)
+                                                                 wind))))))
+      (unless (eq wind target)
+        (select-window target))
+      (unless (get-buffer-window calendar-buffer)
+        (setq target (split-window-vertically (- (window-height) 10)
+                                              target)))
+      (with-selected-window target
+        (set-buffer (get-buffer-create calendar-buffer))
+        (calendar-mode)
+        (let* ((date (calendar-current-date))
+               (month (calendar-extract-month date))
+               (year (calendar-extract-year date)))
+          (calendar-increment-month month year (- calendar-offset))
+          ;; Display the buffer before calling calendar-generate-window so that it
+          ;; can get a chance to adjust the window sizes to the frame size.
+          (pop-to-buffer calendar-buffer)
+          (calendar-generate-window month year)
+          (idate--eval-in-calendar '(setq cursor-type nil))
+          (unwind-protect
+              (progn
+                (calendar-forward-day (-
+                                       (time-to-days
+                                        (apply #'encode-time
+                                               idate-current-time))
+                                       (calendar-absolute-from-gregorian
+                                        (calendar-current-date))))
+                (idate--eval-in-calendar nil))
+            (bury-buffer "*Calendar*"))))))
   (when (active-minibuffer-window)
     (select-window (active-minibuffer-window))))
 
@@ -526,7 +557,12 @@ When nil, only the minibuffer will be available."
       (add-text-properties (point-min)
                            (point-max) '(read-only t))
       (when idate-popup-calendar
-        (idate-calendar-eval)))))
+        (let ((calendar-setup nil)
+              (mouse-autoselect-window nil)
+              (calendar-move-hook nil)
+              (calendar-view-diary-initially-flag nil)
+              (calendar-view-holidays-initially-flag nil))
+          (idate-calendar-eval))))))
 
 (defun idate-time-render-value (time)
   "Render encoded TIME as string."
@@ -547,8 +583,7 @@ When nil, only the minibuffer will be available."
                             (list 'display (format-time-string
                                             (seq-copy (plist-get props
                                                                  :display))
-                                            encoded)
-                                  'invisible t)))
+                                            encoded))))
                          (value (format-time-string
                                  format-str
                                  encoded)))
