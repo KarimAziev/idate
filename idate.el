@@ -189,7 +189,11 @@ When nil, only the minibuffer will be available."
                       (t t)))
     (if valid
         value
-      (or min-val max-val))))
+      (if (and min-val max-val)
+          (if (> value max-val)
+              max-val
+            min-val)
+        (or min-val max-val)))))
 
 (defun idate-jump-to-field (field-name)
   "Jump to FIELD-NAME."
