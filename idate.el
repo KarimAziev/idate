@@ -168,6 +168,17 @@ When nil, only the minibuffer will be available."
                                 decoded-time))))
     (decode-time (seconds-to-time (+ time (* hours 3600))))))
 
+(defun idate-set-fields-value (alist)
+  "Update date from ALIST of symbols from `idate-time-elems' and values."
+  (dolist (it alist)
+    (let ((field-name (car it))
+          (field-value (if (listp (cdr it))
+                           (nth 1 it)
+                         (cdr it))))
+      (let ((idx (seq-position idate-time-elems field-name)))
+        (setf (nth idx idate-current-time) field-value))))
+  idate-current-time)
+
 (defun idate-set-field-value (field-name new-value)
   "Update date and rerender FIELD-NAME with NEW-VALUE."
   (let ((idx (seq-position idate-time-elems field-name)))
@@ -176,8 +187,7 @@ When nil, only the minibuffer will be available."
           new-value)
     (setq idate-current-time
           (decode-time (encode-time
-                        idate-current-time)))
-    (idate-rerender)))
+                        idate-current-time)))))
 
 (defun idate-get-field-valid-value (field-name value)
   "Return t if VALUE of FIELD-NAME is valid."
@@ -481,6 +491,7 @@ When nil, only the minibuffer will be available."
                          (string-to-number new-value))))
           (idate-set-field-value
            field-name val)
+          (idate-rerender)
           (if (string-empty-p value-after)
               (idate-next-field)
             (forward-char 1)))
@@ -502,6 +513,8 @@ When nil, only the minibuffer will be available."
                   (current-buffer))
     (select-window sw)
     (select-frame-set-input-focus sf)))
+
+
 
 (defun idate-calendar-eval ()
   "Sync calendar with `idate-current-time'."
@@ -539,10 +552,45 @@ When nil, only the minibuffer will be available."
                                                idate-current-time))
                                        (calendar-absolute-from-gregorian
                                         (calendar-current-date))))
-                (idate--eval-in-calendar nil))
-            (bury-buffer "*Calendar*"))))))
+                (idate--eval-in-calendar nil)
+                (let ((map (copy-keymap calendar-mode-map)))
+                  (define-key map (kbd "RET") 'idate-calendar-select)
+                  (define-key map [mouse-1] 'idate-calendar-select-mouse)
+                  (define-key map [mouse-2] 'idate-calendar-select-mouse)
+                  (use-local-map map)))
+            (bury-buffer calendar-buffer))))))
   (when (active-minibuffer-window)
     (select-window (active-minibuffer-window))))
+
+(defun idate-calendar-select ()
+  "Return to `org-read-date' with the date currently selected.
+This is used by `org-read-date' in a temporary keymap for the calendar buffer."
+  (interactive)
+  (when-let ((date (calendar-cursor-to-date)))
+    (pcase-let ((`(,month ,day ,year)
+                 date))
+      (idate-set-fields-value
+       (list (cons 'month month)
+             (cons 'day day)
+             (cons 'year year))))
+    (when (active-minibuffer-window)
+      (with-selected-window (active-minibuffer-window)
+        (idate-rerender)))))
+
+(defun idate-calendar-select-mouse (ev)
+  "Read mouse event EV in the calendar buffer."
+  (interactive "e")
+  (mouse-set-point ev)
+  (when-let ((date (calendar-cursor-to-date)))
+    (pcase-let ((`(,month ,day ,year)
+                 date))
+      (idate-set-fields-value
+       (list (cons 'month month)
+             (cons 'day day)
+             (cons 'year year))))
+    (when (active-minibuffer-window)
+      (with-selected-window (active-minibuffer-window)
+        (idate-rerender)))))
 
 (defun idate-rerender ()
   "Render `idate-current-time' in minibuffer."
