@@ -276,7 +276,7 @@ When nil, only the minibuffer will be available."
           #'encode-time
           idate-current-time)))
 
-(defvar idate--org-with-time nil)
+(defvar idate--org-with-time t)
 (defun idate-toggle-with-time ()
   "Throw done with encoded `idate-current-time'."
   (interactive)
@@ -716,8 +716,11 @@ PRE and POST are optional strings to be inserted before and after the
 stamp.
 EXTRA is last argument to pass in `org-insert-time-stamp'.
 The command returns the inserted time stamp."
-  (when (fboundp 'org-insert-time-stamp)
-    (org-insert-time-stamp (idate-read "Timestamp: " nil without-hm)
+  (let* ((with-time (symbol-value 'idate--org-with-time))
+         (date (idate-read "Timestamp: " nil without-hm)))
+    (when (not (equal with-time idate--org-with-time))
+      (setq without-hm (not idate--org-with-time)))
+    (org-insert-time-stamp date
                            (not without-hm) inactive pre post extra)))
 
 
@@ -822,10 +825,7 @@ stamp.
 EXTRA is last argument to pass in `org-insert-time-stamp'.
 The command returns the inserted time stamp."
   (interactive)
-  (when (fboundp 'org-insert-time-stamp)
-    (let ((without-hm (not (yes-or-no-p "With hh:mm?"))))
-      (idate-insert-time-stamp without-hm
-                               nil nil nil nil))))
+  (idate-insert-time-stamp))
 
 (provide 'idate)
 ;;; idate.el ends here
