@@ -6,7 +6,8 @@
 ;; URL: https://github.com/KarimAziev/idate
 ;; Version: 0.1.0
 ;; Keywords: tools calendar
-;; Package-Requires: ((emacs "27.1"))
+;; Package-Requires: ((emacs "29.1") (org "9.6.10"))
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;; This file is NOT part of GNU Emacs.
 
