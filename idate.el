@@ -669,43 +669,86 @@ If WITHOUT-TIME don't display time."
                       (cdr default-format-cell))))
    (idate-read prompt default-value
                without-time)))
+
+(defun idate-format-time-diff (time)
+  "Calculate and format the time difference from the current TIME.
+
+Argument TIME is the time value that will be compared with the current time to
+calculate the time difference."
+  (let ((diff-secs (- (float-time (current-time))
+                      (float-time time))))
+    (pcase-let
+        ((`(,format-str . ,value)
+          (cond ((< 0 diff-secs 60)
+                 (cons "%d second" (truncate diff-secs)))
+                ((< 0 diff-secs 3600)
+                 (cons "%d minute" (truncate (/ diff-secs 60))))
+                ((< 0 diff-secs 86400)
+                 (cons "%d hour" (truncate (/ diff-secs 3600))))
+                ((< 0 diff-secs 2592000)
+                 (cons "%d day" (truncate (/ diff-secs 86400))))
+                ((< (- diff-secs) 60)
+                 (cons "%d second" (- (truncate diff-secs))))
+                ((< (- diff-secs) 3600)
+                 (cons "%d minute" (- (truncate (/ diff-secs 60)))))
+                ((< (- diff-secs) 86400)
+                 (cons "%d hour" (- (truncate (/ diff-secs 3600)))))
+                ((< (- diff-secs) 2592000)
+                 (cons "%d day" (- (truncate (/ diff-secs 86400)))))
+                (t
+                 (cons "%d month" (- (truncate (/ diff-secs 2592000))))))))
+      (format (concat format-str
+                      (cond ((and (> diff-secs 0)
+                                  (= value 1))
+                             " ago ")
+                            ((> diff-secs 0) "s ago ")
+                            (t " from now")))
+              value))))
+
+(defun idate-show-diff-time ()
+  "Calculate and format the time difference from the current TIME.
+
+Argument TIME is the time value that will be compared with the current time to
+calculate the time difference."
+  (message (idate-format-time-diff (encode-time idate-current-time))))
+
+
 ;;;###autoload
 (defun idate-read (&optional prompt default-value without-time)
-  "Read date in minibuffer with PROMPT and return encoded result.
-Optional argument DEFAULT-VALUE should be encoded time.
-If WITHOUT-TIME don't display time."
+  "Read date in minibuffer with PROMPT and DEFAULT-VALUE and return encoded result.
+
+Optional argument PROMPT is a string that is displayed to the user when asking
+for input.
+
+Optional argument DEFAULT-VALUE should be the encoded time that will be used if
+the user does not provide any input.
+
+Optional argument WITHOUT-TIME is a boolean value that, if true, will remove the
+time from the date."
   (setq idate-current-time
         (decode-time (or default-value (org-current-time))))
-  (catch 'done (minibuffer-with-setup-hook
-                   (lambda ()
-                     (when (active-minibuffer-window)
-                       (let* ((map
-                               (copy-keymap
-                                idate-minubuffer-keymap)))
-                         (set-keymap-parent map
-                                            minibuffer-local-map)
-                         (use-local-map map)
-                         (setq-local
-                          idate-rules
-                          (if
-                              without-time
-                              (seq-remove
-                               (lambda (it)
-                                 (memq
-                                  (car
-                                   it)
-                                  '(hour
-                                    minute
-                                    second)))
-                               idate-rules-alist)
-                            (seq-copy
-                             idate-rules-alist)))
-                         (let ((inhibit-read-only
-                                t))
-                           (idate-rerender)))))
-                 (read-from-minibuffer (or
-                                        prompt
-                                        "Date: ")))))
+  (catch 'done
+    (minibuffer-with-setup-hook
+        (lambda ()
+          (when (minibufferp)
+            (add-hook 'post-command-hook 'idate-show-diff-time nil t)
+            (use-local-map
+             (make-composed-keymap idate-minubuffer-keymap
+                                   minibuffer-local-map))
+            (setq-local idate-rules
+                        (if without-time (seq-remove
+                                          (lambda (it)
+                                            (memq
+                                             (car
+                                              it)
+                                             '(hour
+                                               minute
+                                               second)))
+                                          idate-rules-alist)
+                          (seq-copy idate-rules-alist)))
+            (let ((inhibit-read-only t))
+              (idate-rerender))))
+      (read-from-minibuffer (or prompt "Date: ")))))
 
 (defun idate-insert-time-stamp (&optional without-hm inactive pre post extra)
   "Read and insert date as org timestamp.
