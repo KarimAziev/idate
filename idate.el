@@ -731,7 +731,7 @@ time from the date."
     (minibuffer-with-setup-hook
         (lambda ()
           (when (minibufferp)
-            (add-hook 'post-command-hook 'idate-show-diff-time nil t)
+            (add-hook 'post-command-hook #'idate-show-diff-time nil t)
             (use-local-map
              (make-composed-keymap idate-minubuffer-keymap
                                    minibuffer-local-map))
