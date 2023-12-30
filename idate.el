@@ -706,10 +706,7 @@ calculate the time difference."
               value))))
 
 (defun idate-show-diff-time ()
-  "Calculate and format the time difference from the current TIME.
-
-Argument TIME is the time value that will be compared with the current time to
-calculate the time difference."
+  "Display time difference from `idate-current-time'."
   (message (idate-format-time-diff (encode-time idate-current-time))))
 
 
