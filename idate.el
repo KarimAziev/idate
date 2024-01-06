@@ -603,11 +603,15 @@ This is used by `org-read-date' in a temporary keymap for the calendar buffer."
               (mouse-autoselect-window nil)
               (calendar-move-hook nil)
               (calendar-view-diary-initially-flag nil)
-              (calendar-view-holidays-initially-flag nil))
+              (calendar-view-holidays-initially-flag nil)
+              (calendar-mark-holidays-flag nil))
           (idate-calendar-eval))))))
 
 (defun idate-time-render-value (time)
-  "Render encoded TIME as string."
+  "Render formatted date-time string from TIME with properties.
+
+Argument TIME is a time value that can be a list, as returned by `decode-time',
+or a TIME string."
   (let* ((decoded (decode-time time))
          (encoded (apply
                    #'encode-time
@@ -789,11 +793,12 @@ user."
          (ct (org-current-time))
          (org-def (or org-overriding-default-time default-time ct))
          (org-defdecode (decode-time org-def))
-         (mouse-autoselect-window nil) ; Don't let the mouse jump
+         (mouse-autoselect-window nil)  ; Don't let the mouse jump
          (calendar-setup nil)
          (calendar-move-hook nil)
          (calendar-view-diary-initially-flag nil)
          (calendar-view-holidays-initially-flag nil)
+         (calendar-mark-holidays-flag nil)
          ans final)
     (when (< (nth 2 org-defdecode) org-extend-today-until)
       (setf (nth 2 org-defdecode) -1)
