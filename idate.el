@@ -32,12 +32,31 @@
 
 
 
+
+(require 'calendar)
 (require 'org)
-(defvar idate-current-time nil)
+
+(declare-function date-days-in-month "time-date")
+(declare-function text-property-search-backward "text-property-search")
+
+(defvar idate-current-time nil
+  "Timestamp of (SEC MINUTE HOUR DAY MONTH YEAR DOW DST UTCOFF).")
 
 (defcustom idate-popup-calendar t
-  "Non-nil means display a calendar when prompting for a date.
-When nil, only the minibuffer will be available."
+  "Whether to show a calendar when editing dates.
+
+Determines whether a popup calendar is displayed when editing date fields in an
+interactive date editing environment. When non-nil, the popup calendar is shown
+to assist with date selection. When nil, the popup calendar is not displayed.
+
+The default value is t, enabling the popup calendar by default.
+
+To change this behavior, set the value to nil. This can be done programmatically
+by setting the variable to nil in Lisp code, or interactively through the
+customization interface for date and time related settings.
+
+Changing the value of this variable while editing a date field will take effect
+immediately, either showing or hiding the popup calendar based on the new value."
   :group 'org-time
   :type 'boolean)
 
@@ -48,11 +67,15 @@ When nil, only the minibuffer will be available."
     (day . "%d")
     (month . "%m")
     (year . "%Y")
-    (dow . "%w")))
+    (dow . "%w"))
+  "Alist mapping time units to strftime format strings.")
 
 (defvar idate-time-elems '(second minute hour day month year dow dst
-                                         utcoff))
+                           utcoff)
+  "Ordered list of date-time elements.
 
+In includes second, minute, hour, day, month, year, day of week, DST, UTC
+offset.")
 
 (defcustom idate-rules-alist '((day)
                                (month :display "%b")
@@ -62,7 +85,34 @@ When nil, only the minibuffer will be available."
                                (hour
                                 :separator ":")
                                (minute))
-  "Rules for date parts."
+  "Alist mapping date/time components to display and separator rules.
+
+An association list defining the rules for interactive date components and their
+display formats. Each element of the list is a cons cell where the car is a
+symbol representing a date or time component, and the cdr is a property list
+specifying options for that component.
+
+Supported components are `day', `month', `dow' (day of the week), `year',
+`hour', and `minute'.
+
+The property list can contain the following keys:
+
+- :separator, with a string value, defines the string to use to separate this
+component from the next when displaying the date. The default separator is a
+space (\" \").
+
+- :display, with a string value, specifies the format to use when displaying the
+component. The format should be a string compatible with the
+`format-time-string' function. If not provided, the default display format for
+the component is used.
+
+For example, to display the month as a three-letter abbreviation followed by a
+period (e.g., \"Jan.\"), set the :display property for the `month' component to
+\"%b.\". To separate the hour and minute components with a hyphen instead of the
+default colon, set the :separator property for the `hour' component to \"-\".
+
+To modify the display of interactive date components, customize this list
+according to the desired output format."
   :group 'date
   :type `(alist
           :key-type
@@ -70,19 +120,28 @@ When nil, only the minibuffer will be available."
                      (lambda (it)
                        (list 'const :tag (capitalize (symbol-name
                                                       it))
-                             it))
+                        it))
                      (seq-take-while (lambda (it)
                                        (not (eq it 'dst)))
-                                     idate-time-elems)))
+                      idate-time-elems)))
           :value-type
           (plist :options
-                 ((:separator (string :tag "Separator" " "))
-                  (:display (string :tag "Display format"))))))
+           ((:separator (string :tag "Separator" " "))
+            (:display (string :tag "Display format"))))))
 
 (defvar-local idate-rules nil)
 
 (defun idate-inc-or-dec (step current-index min max)
-  "Increase or decrease CURRENT-INDEX depending on STEP value, MIN and MAX."
+  "Increment or decrement index within bounds.
+
+Argument STEP is an integer indicating the increment or decrement step.
+
+Argument CURRENT-INDEX is the current index as an integer.
+
+Argument MIN is the minimum index value as an integer.
+
+Argument MAX is either the maximum index value as an integer or a list whose
+length determines the maximum index value."
   (let ((max (if (numberp max)
                  max
                (length max))))
@@ -96,30 +155,36 @@ When nil, only the minibuffer will be available."
                min
              (+ step current-index))))))
 
-
-
 (defun idate-date-inc-or-dec (field &optional step)
-  "Increment or decrement FIELD by STEP."
+  "Increment or decrement date fields by a given step.
+
+Argument FIELD is a symbol representing the date or time field to be incremented
+or decremented.
+
+Optional argument STEP is an integer specifying the amount to increment or
+decrement the FIELD by; it defaults to 1."
   (require 'time-date)
   (let ((idx (seq-position idate-time-elems field))
-        (max (pcase field
-               ('minute 59)
-               ('hour 23)
-               ('day (date-days-in-month
-                      (nth (seq-position idate-time-elems 'year)
-                           idate-current-time)
-                      (nth (seq-position idate-time-elems 'month)
-                           idate-current-time)))
-               ('month 12)
-               ('year 2999)
-               ('dow 6)))
-        (min (pcase field
-               ('minute 0)
-               ('hour 0)
-               ('day 1)
-               ('month 1)
-               ('year 1970)
-               ('dow 0)))
+        (max
+         (pcase field
+           ('minute 59)
+           ('hour 23)
+           ('day (date-days-in-month
+                  (nth (seq-position idate-time-elems 'year)
+                       idate-current-time)
+                  (nth (seq-position idate-time-elems 'month)
+                       idate-current-time)))
+           ('month 12)
+           ('year 2999)
+           ('dow 6)))
+        (min
+         (pcase field
+           ('minute 0)
+           ('hour 0)
+           ('day 1)
+           ('month 1)
+           ('year 1970)
+           ('dow 0)))
         (value)
         (new-value))
     (setq value (nth idx idate-current-time))
@@ -163,14 +228,22 @@ When nil, only the minibuffer will be available."
     (idate-rerender)))
 
 (defun idate-day-add-hours (hours decoded-time)
-  "Returnq decoded DECODED-TIME with HOURS added."
+  "Add HOURS to DECODED-TIME and return the result.
+
+Argument HOURS is the number of hours to add to the decoded time.
+
+Argument DECODED-TIME is a list representing a decoded time, as returned by
+`decode-time'."
   (let ((time (time-to-seconds (apply
                                 #'encode-time
                                 decoded-time))))
     (decode-time (seconds-to-time (+ time (* hours 3600))))))
 
 (defun idate-set-fields-value (alist)
-  "Update date from ALIST of symbols from `idate-time-elems' and values."
+  "Set specified field values in `idate-current-time' alist.
+
+Argument ALIST is a list of cons cells where each cell's car is a field name and
+cdr is the corresponding value to set."
   (dolist (it alist)
     (let ((field-name (car it))
           (field-value (if (listp (cdr it))
@@ -181,7 +254,13 @@ When nil, only the minibuffer will be available."
   idate-current-time)
 
 (defun idate-set-field-value (field-name new-value)
-  "Update date and rerender FIELD-NAME with NEW-VALUE."
+  "Set field FIELD-NAME in `idate-current-time' to NEW-VALUE.
+
+Argument FIELD-NAME is a symbol representing the field to set; it must be one of
+`second', `minute', `hour', `day', `month', `year', `dow', `dst', or `utcoff'.
+
+Argument NEW-VALUE is the new value to set for the specified field; it should be
+an integer or a boolean for `dst'."
   (let ((idx (seq-position idate-time-elems field-name)))
     (setf (nth idx
                idate-current-time)
@@ -191,25 +270,33 @@ When nil, only the minibuffer will be available."
                         idate-current-time)))))
 
 (defun idate-get-field-valid-value (field-name value)
-  "Return t if VALUE of FIELD-NAME is valid."
-  (let ((max-val (pcase field-name
-                   ('minute 59)
-                   ('hour 23)
-                   ('day (date-days-in-month
-                          (nth (seq-position idate-time-elems 'year)
-                               idate-current-time)
-                          (nth (seq-position idate-time-elems 'month)
-                               idate-current-time)))
-                   ('month 12)
-                   ('year 2999)
-                   ('dow 6)))
-        (min-val (pcase field-name
-                   ('minute 0)
-                   ('year 1970)
-                   ('hour 0)
-                   ('day 1)
-                   ('month 1)
-                   ('dow 0)))
+  "Ensure VALUE is within FIELD-NAME's valid range.
+
+Argument FIELD-NAME is a symbol representing the date field, such as `minute',
+`hour', \\=`day', `month', `year', or `dow'.
+
+Argument VALUE is an integer representing the value to validate against the
+field specified by FIELD-NAME."
+  (let ((max-val
+         (pcase field-name
+           ('minute 59)
+           ('hour 23)
+           ('day (date-days-in-month
+                  (nth (seq-position idate-time-elems 'year)
+                       idate-current-time)
+                  (nth (seq-position idate-time-elems 'month)
+                       idate-current-time)))
+           ('month 12)
+           ('year 2999)
+           ('dow 6)))
+        (min-val
+         (pcase field-name
+           ('minute 0)
+           ('year 1970)
+           ('hour 0)
+           ('day 1)
+           ('month 1)
+           ('dow 0)))
         (valid))
     (setq valid (cond ((and max-val min-val)
                        (and (<= value max-val)
@@ -228,7 +315,9 @@ When nil, only the minibuffer will be available."
         (or min-val max-val)))))
 
 (defun idate-jump-to-field (field-name)
-  "Jump to FIELD-NAME."
+  "Jump to a specified field in the minibuffer.
+
+Argument FIELD-NAME is the name of the field to jump to."
   (require 'text-property-search)
   (let ((field (idate-field-name-at-point)))
     (unless (eq field-name
@@ -240,46 +329,43 @@ When nil, only the minibuffer will be available."
         (goto-char (car bounds))))))
 
 (defun idate-goto-hours ()
-  "Jump to hours in minubuffer."
+  "Jump to the `hour' field in a date input."
   (interactive)
   (idate-jump-to-field 'hour))
 
-
 (defun idate-goto-minutes ()
-  "Jump to minutes in minubuffer."
+  "Jump to the `minute' field in a date input."
   (interactive)
   (idate-jump-to-field 'minute))
 
-
 (defun idate-goto-day ()
-  "Jump to day in minubuffer."
+  "Jump to the `day' field in an interactive date prompt."
   (interactive)
   (idate-jump-to-field 'day))
 
-
 (defun idate-goto-year ()
-  "Jump to year in minubuffer."
+  "Jump to the `year' field in an interactive date prompt."
   (interactive)
   (idate-jump-to-field 'year))
 
-
 (defun idate-goto-month ()
-  "Jump to month in minubuffer."
+  "Jump to the month field in an interactive date prompt."
   (interactive)
   (idate-jump-to-field 'month))
 
-
 (defun idate-done ()
-  "Throw done with encoded `idate-current-time'."
+  "Throw \\='done signal with encoded `idate-current-time'."
   (interactive)
   (throw 'done
          (apply
           #'encode-time
           idate-current-time)))
 
-(defvar idate--org-with-time t)
+(defvar idate--org-with-time t
+  "Whether to include time with date in insertion.")
+
 (defun idate-toggle-with-time ()
-  "Throw done with encoded `idate-current-time'."
+  "Toggle date display to include or exclude time components."
   (interactive)
   (setq idate-rules
         (if (= (length idate-rules)
@@ -302,58 +388,55 @@ When nil, only the minibuffer will be available."
   (idate-rerender))
 
 (defun idate-today ()
-  "Set today to `idate-current-time'."
+  "Set `idate-current-time' to the current time and update display."
   (interactive)
   (setq idate-current-time (decode-time (current-time)))
   (idate-rerender))
 
 (defun idate-inc-day ()
-  "Increment current field."
+  "Increment the day in the date field by one."
   (interactive)
   (save-excursion
     (idate-goto-day)
     (idate-inc-current)))
 
-
 (defun idate-dec-day ()
-  "Increment current field."
+  "Decrement the day in the current date field."
   (interactive)
   (save-excursion
     (idate-goto-day)
     (idate-dec-current)))
 
-
 (defun idate-inc-month ()
-  "Increment current field."
+  "Increment the current month in the date field by one."
   (interactive)
   (save-excursion
     (idate-goto-month)
     (idate-inc-current)))
 
-
 (defun idate-dec-month ()
-  "Increment current field."
+  "Decrement the month in the current date field."
   (interactive)
   (save-excursion
     (idate-goto-month)
     (idate-dec-current)))
 
 (defun idate-dec-year ()
-  "Increment current field."
+  "Decrement the year in the current date field."
   (interactive)
   (save-excursion
     (idate-goto-year)
     (idate-dec-current)))
 
 (defun idate-inc-year ()
-  "Increment current field."
+  "Increment the year in the date field by one."
   (interactive)
   (save-excursion
     (idate-goto-year)
     (idate-inc-current)))
 
 (defun idate-inc-current ()
-  "Increment current field."
+  "Increment the date field at point by one."
   (interactive)
   (when-let* ((bounds (idate-get-prop-bounds 'field-name))
               (field-name (save-excursion
@@ -361,9 +444,8 @@ When nil, only the minibuffer will be available."
                             (get-text-property (point) 'field-name))))
     (idate-date-inc-or-dec field-name  1)))
 
-
 (defun idate-dec-current ()
-  "Decrement current field."
+  "Decrement the current date field value."
   (interactive)
   (when-let* ((bounds (idate-get-prop-bounds 'field-name))
               (field-name (save-excursion
@@ -415,14 +497,20 @@ When nil, only the minibuffer will be available."
     (define-key map (kbd "C-.") #'idate-today)
     (define-key map [remap (delete-backward-char)]
                 #'left-char)
-    map))
+    map)
+  "Keymap for interactive date entry in minibuffer.")
 
 (defun idate-field-bounds-at-point ()
-  "Return current date field-name at point."
+  "Find bounds of `field-name' text property at point."
   (idate-get-prop-bounds 'field-name))
 
 (defun idate-get-prop-bounds (prop &optional pos)
-  "Return property boundaries for PROP at POS."
+  "Find text property PROP's start and end positions.
+
+Argument PROP is the text property to search for.
+
+Optional argument POS is the buffer position to start the search; defaults to
+the current point position."
   (unless pos (setq pos (point)))
   (goto-char pos)
   (if (get-text-property (point) prop)
@@ -438,32 +526,29 @@ When nil, only the minibuffer will be available."
                        (next-single-char-property-change (point) prop))))
       (cons beg end))))
 
-
-
 (defun idate-next-field ()
-  "Goto to next field-name in minibuffer."
+  "Move point to the next date field."
   (interactive)
   (when-let ((bounds (idate-field-bounds-at-point)))
     (goto-char (cdr bounds))
     (when-let ((found (next-single-char-property-change (point) 'field-name)))
       (goto-char found))))
 
-
 (defun idate-prev-field ()
-  "Goto to previous field-name in minibuffer."
+  "Move point to the previous date field."
   (interactive)
+  (require 'text-property-search)
   (when-let ((bounds (idate-field-bounds-at-point)))
     (goto-char (car bounds))
     (text-property-search-backward 'field-name)))
 
 (defun idate-field-name-at-point ()
-  "Return current field name at point in minibuffer."
+  "Retrieve `field-name' text property at point."
   (when-let ((bounds (idate-get-prop-bounds 'field-name)))
     (get-text-property (car bounds) 'field-name)))
 
-
 (defun idate-edit-field-at-point ()
-  "Edit current date field at point."
+  "Edit date field value at cursor position."
   (interactive)
   (when-let* ((bounds (idate-get-prop-bounds 'field-name))
               (field-name (save-excursion
@@ -504,12 +589,18 @@ When nil, only the minibuffer will be available."
         (when idate-popup-calendar
           (idate-calendar-eval))))))
 
-(defvar idate-ovl (make-overlay 1 1))
+(defvar idate-ovl (make-overlay 1 1)
+  "Overlay for displaying the interactive date.")
+
 (overlay-put idate-ovl 'face 'org-date-selected)
+
 (delete-overlay idate-ovl)
 
 (defun idate--eval-in-calendar (form)
-  "Eval FORM in the calendar window and return to current window."
+  "Evaluate FORM in calendar buffer and highlight date.
+
+Argument FORM is an Emacs Lisp expression to be evaluated in the context of the
+calendar buffer."
   (let ((sf (selected-frame))
         (sw (selected-window)))
     (select-window (get-buffer-window "*Calendar*" t))
@@ -557,8 +648,7 @@ When nil, only the minibuffer will be available."
     (select-window (active-minibuffer-window))))
 
 (defun idate-calendar-select ()
-  "Return to `org-read-date' with the date currently selected.
-This is used by `org-read-date' in a temporary keymap for the calendar buffer."
+  "Select date from calendar and update minibuffer."
   (interactive)
   (when-let ((date (calendar-cursor-to-date)))
     (pcase-let ((`(,month ,day ,year)
@@ -572,7 +662,9 @@ This is used by `org-read-date' in a temporary keymap for the calendar buffer."
         (idate-rerender)))))
 
 (defun idate-calendar-select-mouse (ev)
-  "Read mouse event EV in the calendar buffer."
+  "Set date fields from calendar click and update minibuffer.
+
+Argument EV is the event object representing the mouse event."
   (interactive "e")
   (mouse-set-point ev)
   (when-let ((date (calendar-cursor-to-date)))
@@ -587,7 +679,7 @@ This is used by `org-read-date' in a temporary keymap for the calendar buffer."
         (idate-rerender)))))
 
 (defun idate-rerender ()
-  "Render `idate-current-time' in minibuffer."
+  "Update minibuffer display with formatted date-time."
   (when (minibufferp)
     (let ((inhibit-read-only t)
           (pos (point)))
@@ -785,15 +877,20 @@ Optional argument WITHOUT-TIME specifies whether to exclude time components
       (read-from-minibuffer (or prompt "Date: ")))))
 
 (defun idate-insert-time-stamp (&optional without-hm inactive pre post extra)
-  "Read and insert date as org timestamp.
-See `format-time-string' for the format of TIME.
-WITHOUT-HM inhibit the stamp format that includes the time of the day.
-INACTIVE means use square brackets instead of angular ones, so that the
-stamp will not contribute to the agenda.
-PRE and POST are optional strings to be inserted before and after the
-stamp.
-EXTRA is last argument to pass in `org-insert-time-stamp'.
-The command returns the inserted time stamp."
+  "Insert a timestamp at point with optional settings.
+
+Optional argument WITHOUT-HM is a boolean value; if non-nil, the time is omitted
+from the timestamp.
+
+Optional argument INACTIVE is a boolean value; if non-nil, the timestamp is
+inserted as inactive.
+
+Optional argument PRE is a string to be inserted before the timestamp.
+
+Optional argument POST is a string to be inserted after the timestamp.
+
+Optional argument EXTRA is additional data to be passed to
+`org-insert-time-stamp'."
   (let* ((with-time (symbol-value 'idate--org-with-time))
          (date (idate-read "Timestamp: " nil without-hm)))
     (when (not (equal with-time idate--org-with-time))
@@ -802,27 +899,33 @@ The command returns the inserted time stamp."
                            (not without-hm) inactive pre post extra)))
 
 
-
 (defvar org-read-date-final-answer)
 
 (defun idate-org-read-date (&optional with-time to-time from-string prompt
                                       default-time default-input _inactive)
-  "Replacement for `org-read-date'.
+  "Parse and return a date-time string from user input.
+
+This is a replacement for `org-read-date'.
 
 \\(advice-add \\='org-read-date :override #\\='idate-org-read-date)
 
-With optional argument TO-TIME, the date will immediately be converted
-to an internal time.
-With an optional argument WITH-TIME, the prompt will suggest to
-also insert a time.  Note that when WITH-TIME is not set, you can
-still enter a time, and this function will inform the calling routine
-about this change.  The calling routine may then choose to change the
-format used to insert the time stamp into the buffer to include the time.
-With optional argument FROM-STRING, read from this string instead from
-the user.  PROMPT can overwrite the default prompt.  DEFAULT-TIME is
-the time/date that is used for everything that is not specified by the
-user."
-  (require 'org)
+Optional argument WITH-TIME is a boolean indicating whether time should be
+included in the date prompt.
+
+Optional argument TO-TIME is a boolean indicating whether the function should
+return the date as an encoded time value.
+
+Optional argument FROM-STRING is a string representing a date that bypasses the
+interactive prompt.
+
+Optional argument PROMPT is a string used as the prompt for the date input.
+
+Optional argument DEFAULT-TIME is the default time value used if no input is
+provided.
+
+Optional argument DEFAULT-INPUT is a string representing the default date input.
+
+Optional argument _INACTIVE is ignored and not used in the function."
   (setq idate--org-with-time
         with-time)
   (let* ((org-with-time with-time)
@@ -893,15 +996,7 @@ user."
 
 ;;;###autoload
 (defun idate-insert-org-time-stamp ()
-  "Read and insert date as org timestamp.
-See `format-time-string' for the format of TIME.
-WITHOUT-HM inhibit the stamp format that includes the time of the day.
-INACTIVE means use square brackets instead of angular ones, so that the
-stamp will not contribute to the agenda.
-PRE and POST are optional strings to be inserted before and after the
-stamp.
-EXTRA is last argument to pass in `org-insert-time-stamp'.
-The command returns the inserted time stamp."
+  "Insert an Org-mode timestamp at point."
   (interactive)
   (idate-insert-time-stamp))
 
