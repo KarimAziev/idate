@@ -493,7 +493,12 @@ When nil, only the minibuffer will be available."
           (idate-set-field-value
            field-name val)
           (idate-rerender)
-          (if (string-empty-p value-after)
+          (if
+              (when-let* ((pos (point))
+                          (next-field-pos
+                           (next-single-char-property-change pos
+                                                             'field-name)))
+                (= 1 (- next-field-pos pos)))
               (idate-next-field)
             (forward-char 1)))
         (when idate-popup-calendar
