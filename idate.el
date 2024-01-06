@@ -649,76 +649,116 @@ or a TIME string."
 
 (defun idate-read-and-format (&optional prompt default-value without-time
                                         format-str)
-  "Read date with PROMPT and return formatted with FORMAT-STR result.
-Optional argument DEFAULT-VALUE should be encoded time.
-If WITHOUT-TIME don't display time."
+  "PROMPT for a date, then return it formatted.
+
+Optional argument PROMPT is a string to display as the prompt in the minibuffer.
+
+Optional argument DEFAULT-VALUE is the default time value to use if none is
+provided.
+
+Optional argument WITHOUT-TIME specifies whether to exclude time components from
+the date.
+
+Optional argument FORMAT-STR is a string specifying the format to use for
+output."
   (format-time-string
-   (or format-str (let ((default-format-cell
-                         (if
-                             (bound-and-true-p
-                              org-time-stamp-formats)
-                             org-time-stamp-formats
-                           '("%Y-%m-%d %a"
-                             .
-                             "%Y-%m-%d %a %H:%M"))))
-                    (if without-time
-                        (car default-format-cell)
-                      (cdr default-format-cell))))
+   (or format-str
+       (let ((default-format-cell
+              (if
+                  (bound-and-true-p
+                   org-time-stamp-formats)
+                  org-time-stamp-formats
+                '("%Y-%m-%d %a"
+                  .
+                  "%Y-%m-%d %a %H:%M"))))
+         (if without-time
+             (car default-format-cell)
+           (cdr default-format-cell))))
    (idate-read prompt default-value
                without-time)))
 
-(defun idate-format-time-diff (time)
-  "Calculate and format the time difference from the current TIME.
+(defun idate--format-plural (count singular-str)
+  "Format COUNT with SINGULAR-STR, adding \"s\" for plural.
 
-Argument TIME is the time value that will be compared with the current time to
-calculate the time difference."
-  (let ((diff-secs (- (float-time (current-time))
-                      (float-time time))))
-    (pcase-let
-        ((`(,format-str . ,value)
-          (cond ((< 0 diff-secs 60)
-                 (cons "%d second" (truncate diff-secs)))
-                ((< 0 diff-secs 3600)
-                 (cons "%d minute" (truncate (/ diff-secs 60))))
-                ((< 0 diff-secs 86400)
-                 (cons "%d hour" (truncate (/ diff-secs 3600))))
-                ((< 0 diff-secs 2592000)
-                 (cons "%d day" (truncate (/ diff-secs 86400))))
-                ((< (- diff-secs) 60)
-                 (cons "%d second" (- (truncate diff-secs))))
-                ((< (- diff-secs) 3600)
-                 (cons "%d minute" (- (truncate (/ diff-secs 60)))))
-                ((< (- diff-secs) 86400)
-                 (cons "%d hour" (- (truncate (/ diff-secs 3600)))))
-                ((< (- diff-secs) 2592000)
-                 (cons "%d day" (- (truncate (/ diff-secs 86400)))))
-                (t
-                 (cons "%d month" (- (truncate (/ diff-secs 2592000))))))))
-      (format (concat format-str
-                      (cond ((and (> diff-secs 0)
-                                  (= value 1))
-                             " ago ")
-                            ((> diff-secs 0) "s ago ")
-                            (t " from now")))
-              value))))
+Argument COUNT is an integer representing the quantity to consider for
+pluralization.
+
+Argument SINGULAR-STR is a string representing the singular form of the word to
+be potentially pluralized."
+  (concat (format "%d " count)
+          (concat singular-str
+                  (if (= count 1) "" "s"))))
+
+(defun idate-format-time-diff (time)
+  "Format a human-readable string representing TIME difference.
+
+Argument TIME is a time value representing the number of seconds since the epoch
+\\=(January 1, 1970, 00:00:00 GMT)."
+  (let ((diff-secs
+         (- (float-time (encode-time (append (list 0)
+                                             (cdr (decode-time
+                                                   (current-time))))))
+            (float-time
+             (encode-time (append (list 0)
+                                  (cdr (decode-time time))))))))
+    (if (zerop (round diff-secs))
+        "Now"
+      (let* ((past (> diff-secs 0))
+             (diff-secs-int (if past diff-secs (- diff-secs)))
+             (suffix (if past "ago" "from now"))
+             (minutes-secs 60)
+             (hours-secs (* 60 minutes-secs))
+             (day-secs (* 24 hours-secs))
+             (month-secs (* 30 day-secs))
+             (year-secs (* 365 day-secs))
+             (res
+              (cond ((< diff-secs-int minutes-secs)
+                     (idate--format-plural (truncate diff-secs-int) "second"))
+                    ((< diff-secs-int hours-secs)
+                     (idate--format-plural (truncate (/ diff-secs-int
+                                                        minutes-secs))
+                                           "minute"))
+                    ((< diff-secs-int day-secs)
+                     (idate--format-plural (truncate
+                                            (/ diff-secs-int hours-secs))
+                                           "hour"))
+                    ((< diff-secs-int month-secs)
+                     (idate--format-plural (truncate (/ diff-secs-int day-secs))
+                                           "day"))
+                    ((< diff-secs-int year-secs)
+                     (idate--format-plural (truncate
+                                            (/ diff-secs-int month-secs))
+                                           "month"))
+                    (t
+                     (let* ((months (truncate (/ diff-secs-int month-secs)))
+                            (years (/ months 12))
+                            (remaining-months (% months 12)))
+                       (string-join
+                        (delq nil
+                              (list
+                               (when (> years 0)
+                                 (idate--format-plural years "year"))
+                               (when (> remaining-months 0)
+                                 (idate--format-plural remaining-months "month"))))
+                        " "))))))
+        (concat res " " suffix)))))
 
 (defun idate-show-diff-time ()
-  "Display time difference from `idate-current-time'."
+  "Display the time difference from `idate-current-time'."
   (message (idate-format-time-diff (encode-time idate-current-time))))
-
 
 ;;;###autoload
 (defun idate-read (&optional prompt default-value without-time)
-  "Read date in minibuffer with PROMPT and DEFAULT-VALUE and return encoded result.
+  "PROMPT for a date input with optional time components.
 
-Optional argument PROMPT is a string that is displayed to the user when asking
-for input.
+Optional argument PROMPT is the string to display as the prompt in the
+minibuffer.
 
-Optional argument DEFAULT-VALUE should be the encoded time that will be used if
-the user does not provide any input.
+Optional argument DEFAULT-VALUE is the default time value to use if none is
+provided.
 
-Optional argument WITHOUT-TIME is a boolean value that, if true, will remove the
-time from the date."
+Optional argument WITHOUT-TIME specifies whether to exclude time components
+\(hour, minute, second) from the date."
   (setq idate-current-time
         (decode-time (or default-value (org-current-time))))
   (catch 'done
