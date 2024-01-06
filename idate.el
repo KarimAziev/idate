@@ -520,33 +520,21 @@ When nil, only the minibuffer will be available."
     (select-window sw)
     (select-frame-set-input-focus sf)))
 
-
-
 (defun idate-calendar-eval ()
-  "Sync calendar with `idate-current-time'."
-  (require 'calendar)
-  (require 'cal-move)
+  "Display a calendar for date selection."
   (save-excursion
-    (let* ((wind (or (minibuffer-selected-window)
-                     (selected-window)))
-           (target (car (delete nil
-                                (seq-filter #'window-live-p (list (window-left
-                                                                  wind)
-                                                                 wind))))))
-      (unless (eq wind target)
-        (select-window target))
-      (unless (get-buffer-window calendar-buffer)
-        (setq target (split-window-vertically (- (window-height) 10)
-                                              target)))
+    (let ((target
+           (or (get-buffer-window calendar-buffer)
+               (let ((ignore-window-parameters t))
+                 (split-window
+                  (frame-root-window) -10 'below)))))
       (with-selected-window target
-        (set-buffer (get-buffer-create calendar-buffer))
+        (pop-to-buffer-same-window (get-buffer-create calendar-buffer))
         (calendar-mode)
         (let* ((date (calendar-current-date))
                (month (calendar-extract-month date))
                (year (calendar-extract-year date)))
           (calendar-increment-month month year (- calendar-offset))
-          ;; Display the buffer before calling calendar-generate-window so that it
-          ;; can get a chance to adjust the window sizes to the frame size.
           (pop-to-buffer calendar-buffer)
           (calendar-generate-window month year)
           (idate--eval-in-calendar '(setq cursor-type nil))
