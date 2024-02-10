@@ -77,14 +77,14 @@ immediately, either showing or hiding the popup calendar based on the new value.
 In includes second, minute, hour, day, month, year, day of week, DST, UTC
 offset.")
 
-(defcustom idate-rules-alist '((day)
+(defcustom idate-rules-alist '((hour
+                                :separator ":")
+                               (minute)
+                               (day)
                                (month :display "%b")
                                (dow
                                 :display "%A")
-                               (year)
-                               (hour
-                                :separator ":")
-                               (minute))
+                               (year))
   "Alist mapping date/time components to display and separator rules.
 
 An association list defining the rules for interactive date components and their
