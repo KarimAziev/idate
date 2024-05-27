@@ -1,9 +1,6 @@
+A fancy date and time picker for Emacs that allows users to interactively select and edit dates and times using a minibuffer interface, with optional calendar popups for easier date selection.
 
-Fancy replacement for ~org-read-date~.
-
-** Requirements
-
-+ Emacs >= 27.1
+The package also integrates with Org mode, enabling the insertion of timestamps and the customization of date and time formats.
 
 ** Installation
 
@@ -32,7 +29,7 @@ Download the source code and put it wherever you like and add the directory to t
 #+end_src
 
 *** ~idate-minubuffer-keymap~
-| Key       | Command                | 
+| Key       | Command                |
 |-----------+------------------------|
 | TAB       | idate-next-field       |
 | RET       | idate-done             |

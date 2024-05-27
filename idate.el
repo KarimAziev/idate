@@ -1,4 +1,4 @@
-;;; idate.el --- Configure read date -*- lexical-binding: t; -*-
+;;; idate.el --- Fancy date and time picker -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2022 Karim Aziiev <karim.aziiev@gmail.com>
 
@@ -26,12 +26,14 @@
 
 ;;; Commentary:
 
-;; Configure read date
+;; A fancy date and time picker for Emacs that allows users to interactively
+;; select and edit dates and times using a minibuffer interface, with optional
+;; calendar popups for easier date selection.
+
+;; The package also integrates with Org mode, enabling the insertion of
+;; timestamps and the customization of date and time formats.
 
 ;;; Code:
-
-
-
 
 (require 'calendar)
 (require 'org)
