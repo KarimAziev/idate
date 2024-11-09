@@ -327,7 +327,7 @@ Argument FIELD-NAME is the name of the field to jump to."
       (goto-char (minibuffer-prompt-end))
       (text-property-search-forward 'field-name field-name
                                     t)
-      (when-let ((bounds (idate-field-bounds-at-point)))
+      (when-let* ((bounds (idate-field-bounds-at-point)))
         (goto-char (car bounds))))))
 
 (defun idate-goto-hours ()
@@ -531,22 +531,22 @@ the current point position."
 (defun idate-next-field ()
   "Move point to the next date field."
   (interactive)
-  (when-let ((bounds (idate-field-bounds-at-point)))
+  (when-let* ((bounds (idate-field-bounds-at-point)))
     (goto-char (cdr bounds))
-    (when-let ((found (next-single-char-property-change (point) 'field-name)))
+    (when-let* ((found (next-single-char-property-change (point) 'field-name)))
       (goto-char found))))
 
 (defun idate-prev-field ()
   "Move point to the previous date field."
   (interactive)
   (require 'text-property-search)
-  (when-let ((bounds (idate-field-bounds-at-point)))
+  (when-let* ((bounds (idate-field-bounds-at-point)))
     (goto-char (car bounds))
     (text-property-search-backward 'field-name)))
 
 (defun idate-field-name-at-point ()
   "Retrieve `field-name' text property at point."
-  (when-let ((bounds (idate-get-prop-bounds 'field-name)))
+  (when-let* ((bounds (idate-get-prop-bounds 'field-name)))
     (get-text-property (car bounds) 'field-name)))
 
 (defun idate-edit-field-at-point ()
@@ -574,7 +574,7 @@ the current point position."
                             (t (concat value-before descr
                                        (substring value-after 1)))))
       (unless (string-match-p "[^0-9]" new-value)
-        (when-let ((val (idate-get-field-valid-value
+        (when-let* ((val (idate-get-field-valid-value
                          field-name
                          (string-to-number new-value))))
           (idate-set-field-value
@@ -652,7 +652,7 @@ calendar buffer."
 (defun idate-calendar-select ()
   "Select date from calendar and update minibuffer."
   (interactive)
-  (when-let ((date (calendar-cursor-to-date)))
+  (when-let* ((date (calendar-cursor-to-date)))
     (pcase-let ((`(,month ,day ,year)
                  date))
       (idate-set-fields-value
@@ -669,7 +669,7 @@ calendar buffer."
 Argument EV is the event object representing the mouse event."
   (interactive "e")
   (mouse-set-point ev)
-  (when-let ((date (calendar-cursor-to-date)))
+  (when-let* ((date (calendar-cursor-to-date)))
     (pcase-let ((`(,month ,day ,year)
                  date))
       (idate-set-fields-value
